@@ -1,0 +1,148 @@
+# VoxCPM2 CPU — Muestras de voz para "La heredera que vendieron"
+#
+# Genera 1 muestra corta por personaje (Camila, Carmen, Don Emilio) con
+# VoxCPM2 en modo Voice Design (voz disenada por descripcion de texto),
+# en un runner de GitHub Actions SIN GPU, sin secretos y sin login.
+# Se dispara a mano desde la pestaa Actions > Run workflow.
+#
+# VEREDICTO PREVIO (ver README.md de esta carpeta): la version 0.5B NO
+# sirve para esto — la tabla oficial "Models & Versions" de OpenBMB/VoxCPM
+# dice que VoxCPM-0.5B NO tiene Voice Design y solo habla chino/ingles.
+# Solo VoxCPM2 (2B) tiene Voice Design + 30 idiomas incluido espanol.
+# Por eso este workflow instala VoxCPM2, no la 0.5B.
+#
+# Por que ubuntu-24.04 + Python 3.11: voxcpm exige Python >= 3.10 (< 3.13)
+# y torch >= 2.5.0. El repo del piloto es PUBLICO, asi que el runner
+# ubuntu-24.04 da 4 vCPU y 16 GB RAM (en repo privado serian 2 vCPU/8 GB).
+# El disco es 14 GB en ambos casos y el modelo pesa ~9.5 GB, asi que hay
+# un paso que libera disco y un guarda que aborta si quedan < 11 GB libres
+# antes de descargar el modelo.
+#
+# Decisiones de rendimiento en CPU (verificadas en el codigo de voxcpm):
+# - torch CPU (no el wheel CUDA de PyPI): se instala ANTES que voxcpm
+#   para que pip no baje el torch CUDA.
+# - --no-optimize en el script: optimize=True es torch.compile; en CPU
+#   intentaria compilar el modelo 2B con inductor (muy lento, puede fallar).
+# - load_denoiser=False: el denoiser (ZipEnhancer) es una descarga aparte
+#   de ModelScope y solo limpia audios de referencia; en `design` no hay
+#   referencia, asi que no hace falta.
+# - El script carga el modelo UNA vez y genera las 3 muestras en el mismo
+#   proceso (la CLI `voxcpm design` cargaria el modelo 3 veces).
+#
+# Costo: repo publico -> los runners estandar son gratis e ilimitados, no
+# gasta los 2.000 min/mes. Los artifacts caducan a los 7 dias.
+#
+# Las muestras NO cambian ningun lock de voz: son solo para que Marco las
+# escuche y apruebe. Elena (ef_dora) y Adrian (em_santa) no se tocan.
+
+name: VoxCPM2 CPU — Muestras de voz
+
+on:
+  workflow_dispatch:
+    inputs:
+      personaje:
+        description: "Personaje (todos = Camila + Carmen + Don Emilio)"
+        type: choice
+        options:
+          - todos
+          - camila
+          - carmen
+          - emilio
+        default: todos
+      seed_base:
+        description: "Base de seed (vacio = seeds del manifiesto: 42/43/44). Cambiarla genera otras voces."
+        type: number
+        default: 0
+
+permissions:
+  contents: read
+
+concurrency:
+  group: voxcp2-muestras
+  cancel-in-progress: false
+
+jobs:
+  voxcp2-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf-cache
+      PYTHONUNBUFFERED: "1"
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Recursos del runner
+        run: |
+          echo "vCPUs: $(nproc)"
+          free -m
+          df -h
+          python --version
+
+      - name: Liberar disco
+        # El modelo VoxCPM2 pesa ~9.5 GB y el disco total es 14 GB.
+        # Quitar toolchains preinstalados que no usamos libera varios GB.
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/hostedtoolcache \
+            /usr/local/share/boost /opt/ghc /usr/local/lib/android \
+            /usr/share/swift 2>/dev/null || true
+          sudo apt-get clean
+          df -h
+
+      - name: Guarda de disco (falla si no caben modelo + venv)
+        run: |
+          FREE_GB=$(df --output=avail -BG "$GITHUB_WORKSPACE" | tail -1 | tr -dc '0-9')
+          echo "Espacio libre: ${FREE_GB} GB"
+          if [ "$FREE_GB" -lt 11 ]; then
+            echo "FALTA DISCO: hacen falta >= 11 GB libres (modelo ~9.5 GB + venv ~2.5 GB)" >&2
+            exit 1
+          fi
+
+      - name: Dependencias del sistema
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg libsndfile1
+          ffmpeg -version | head -1
+
+      - name: PyTorch CPU (antes que voxcpm, para que pip no baje el wheel CUDA)
+        run: |
+          python -m pip install --upgrade pip --no-cache-dir
+          pip install --no-cache-dir torch torchaudio torchcodec \
+            --index-url https://download.pytorch.org/whl/cpu
+          python -c "import torch; print('torch', torch.__version__, '| threads:', torch.get_num_threads())"
+
+      - name: Instalar voxcpm
+        # torch ya satisface torch>=2.5.0, asi que pip no lo reinstala.
+        # --no-cache-dir para no gastar disco en la cache de pip.
+        run: |
+          pip install --no-cache-dir voxcpm
+          python -c "import voxcpm; print('voxcpm OK')"
+          voxcpm --help | head -20
+
+      - name: Generar muestras
+        run: |
+          ARGS="--manifiesto muestras.json --out-dir muestras"
+          if [ "${{ inputs.personaje }}" != "todos" ]; then ARGS="$ARGS --personaje ${{ inputs.personaje }}"; fi
+          if [ "${{ inputs.seed_base }}" != "0" ]; then ARGS="$ARGS --seed-base ${{ inputs.seed_base }}"; fi
+          python scripts/generar_muestras.py $ARGS
+          echo "--- wavs generados ---"
+          ls -lh muestras/
+          for f in muestras/*.wav; do
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$f"
+          done
+
+      - name: Subir muestras (siempre, aunque falle alguna)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxcp2-muestras
+          path: muestras/
+          if-no-files-found: warn
+          retention-days: 7
