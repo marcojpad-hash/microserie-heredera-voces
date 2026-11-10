@@ -1,10 +1,15 @@
 # VoxCPM2 CPU — muestras de voz para "La heredera que vendieron"
 
-Ruta preparada (solo local, **nada subido a GitHub**) para generar voces
-distintas y ficticias para los 3 personajes que hoy comparten voz Kokoro:
-Camila, Carmen y Don Emilio. Las muestras son para que Marco las escuche
-y apruebe; **no cambian ningún lock de voz**. Elena (`ef_dora`) y Adrián
-(`em_santa`) no se tocan.
+Paquete de generación ya publicado en este repositorio (`main`):
+`.github/workflows/voxcp2-cpu.yml`, `scripts/generar_muestras.py` y
+`muestras.json`. Genera voces ficticias para Camila, Carmen y Don Emilio.
+Las muestras son para que Marco las escuche y apruebe; **no cambian ningún
+lock de voz**. Elena (`ef_dora`) y Adrián (`em_santa`) no se tocan.
+Estado a 2026-11-10: el script y workflow están en GitHub; no hay evidencia
+de una corrida VoxCPM2 ni de WAV generado/escuchado. No se debe disparar el
+workflow hasta confirmar que la corrida #3 de SadTalker quedó resuelta.
+La app GitHub conectada aquí no expone permiso/acción para `workflow_dispatch`;
+el disparo, cuando se levante esa compuerta, se hace desde Actions en GitHub.
 
 ## Veredicto
 
@@ -17,16 +22,16 @@ y apruebe; **no cambian ningún lock de voz**. Elena (`ef_dora`) y Adrián
 | ¿Cabe en disco? | **Justo.** Modelo ~9.5 GB (verificado en la API de HF: `usedStorage: 9538100293`) + venv ~2.5 GB ≈ 12 GB de 14 GB. El workflow libera disco (quita dotnet, toolcache, Android, etc.) y aborta si quedan < 11 GB libres antes de descargar. |
 | ¿Cuánto tarda la corrida? | **Estimado 15–30 min típico; hasta ~60 min en el peor caso.** Desglose: setup (Python + torch CPU + voxcpm) 5–10 min; descarga del modelo 9.5 GB, 2–5 min; carga del modelo en CPU 2–4 min; generación de 3 líneas (~15 s de audio) 2–10 min — el RTF en CPU es NO_VERIFICADO (en GPU RTX 4090 es ~0.30; en CPU se estima 5–30× más lento). El `generate()` reintenta hasta 3 veces si la salida sale mala, lo que puede triplicar la generación. Timeout del job: 120 min. |
 | ¿Cuánto cuesta? | **$0.** Repo público: los runners estándar son gratis e ilimitados, no gastan los 2.000 min/mes. Sin secretos, sin login, sin tarjeta. |
-| ¿Qué falta para dispararla? | **Subir los archivos al repo** `marcojpad-hash/microserie-heredera-sadtalker` con el layout plano que ya usa el pipeline de SadTalker (verificado en el repo: workflow en `.github/`, script en `scripts/`, manifiesto en raíz): `voxcp2-cpu/.github/workflows/voxcp2-cpu.yml` → `.github/workflows/voxcp2-cpu.yml`; `voxcp2-cpu/scripts/generar_muestras.py` → `scripts/generar_muestras.py`; `voxcp2-cpu/muestras.json` → `muestras.json`; `voxcp2-cpu/README.md` → `voxcp2-README.md` (no sobreescribir el README.md del repo). No se puede subir por API (la app de Muse no tiene permiso Workflows); la vía es el navegador de Pecas, como se hizo con `guardian.yml` y con el arreglo BFM de SadTalker. Después: Actions → Run workflow → elegir personaje y seed. **No disparar hasta que se resuelva la corrida #3 de SadTalker** (en curso en otro chat): un workflow nuevo no estorba, pero no conviene mezclar dos estrenos a la vez. |
+| ¿Qué falta para dispararla? | Los archivos ya están publicados en ESTE repositorio: `.github/workflows/voxcp2-cpu.yml`, `scripts/generar_muestras.py` y `muestras.json`. Falta confirmar que la corrida #3 de SadTalker quedó resuelta. Después de esa confirmación: GitHub → Actions → “VoxCPM2 CPU — Muestras de voz” → Run workflow. La app GitHub conectada a esta sesión no ofrece `workflow_dispatch`; no se ha disparado desde aquí. |
 
 ## Archivos
 
-| Archivo (local) | Qué es | Al subir al repo va a |
+| Archivo en GitHub (`main`) | Qué es | Estado |
 |---|---|---|
-| `.github/workflows/voxcp2-cpu.yml` | Workflow: Python 3.11, torch CPU, voxcpm, genera muestras, sube artifact `voxcp2-muestras` (7 días). Inputs: `personaje` (todos/camila/carmen/emilio), `seed_base` (0 = seeds del manifiesto). | `.github/workflows/voxcp2-cpu.yml` |
-| `scripts/generar_muestras.py` | Carga el modelo **una sola vez** y genera las 3 muestras en el mismo proceso (la CLI `voxcpm design` cargaría el modelo 3 veces). Soporta `--personaje`, `--seed-base`, `--dry-run`. Escribe `muestras/<id>.wav` (48 kHz) + `manifiesto_corrida.json` con duraciones y RTF real. | `scripts/generar_muestras.py` (convive con `generar_clips.py`, sin colisión) |
-| `muestras.json` | Manifiesto: modelo, parámetros fijos, 3 personajes con descripción de voz (en), línea (es) y seed. | `muestras.json` (raíz) |
-| `README.md` | Este archivo. | `voxcp2-README.md` (raíz; no sobreescribir el README.md del repo) |
+| `.github/workflows/voxcp2-cpu.yml` | Workflow: Python 3.11, torch CPU, voxcpm, genera muestras, sube artifact `voxcp2-muestras` (7 días). Inputs: `personaje` (todos/camila/carmen/emilio), `seed_base` (0 = seeds del manifiesto). | Publicado en `main`. |
+| `scripts/generar_muestras.py` | Carga el modelo **una sola vez** y genera las 3 muestras en el mismo proceso. Soporta `--personaje`, `--seed-base`, `--dry-run`. Escribe `muestras/<id>.wav` (48 kHz) + `manifiesto_corrida.json` con duraciones y RTF real. | Publicado en `main`. |
+| `muestras.json` | Manifiesto: modelo, parámetros fijos, 3 personajes con descripción de voz (en), línea (es) y seed. | Publicado en `main`. |
+| `README.md` | Instrucciones y estado del paquete. | Este archivo en `main`. |
 
 ## Las 3 voces diseñadas
 
