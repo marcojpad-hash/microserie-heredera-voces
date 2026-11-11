@@ -41,14 +41,24 @@ on:
   workflow_dispatch:
     inputs:
       personaje:
-        description: "Personaje (todos = Camila + Carmen + Don Emilio)"
+        description: "Personaje (todos = todos los del manifiesto elegido)"
         type: choice
         options:
           - todos
           - camila
           - carmen
           - emilio
+          - narrador_es
+          - narradora_es
+          - narrador_en
         default: todos
+      manifiesto:
+        description: "Manifiesto de voces (muestras.json = microserie; muestras_narradores.json = narradores CAPCOT/EN)"
+        type: choice
+        options:
+          - muestras.json
+          - muestras_narradores.json
+        default: muestras.json
       seed_base:
         description: "Base de seed (vacio = seeds del manifiesto: 42/43/44). Cambiarla genera otras voces."
         type: number
@@ -128,7 +138,7 @@ jobs:
 
       - name: Generar muestras
         run: |
-          ARGS="--manifiesto muestras.json --out-dir muestras"
+          ARGS="--manifiesto ${{ inputs.manifiesto }} --out-dir muestras"
           if [ "${{ inputs.personaje }}" != "todos" ]; then ARGS="$ARGS --personaje ${{ inputs.personaje }}"; fi
           if [ "${{ inputs.seed_base }}" != "0" ]; then ARGS="$ARGS --seed-base ${{ inputs.seed_base }}"; fi
           python scripts/generar_muestras.py $ARGS
