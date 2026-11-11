@@ -6,6 +6,13 @@ manifiesto (muestras.json). Cada muestra usa la descripcion de voz en
 ingles del personaje + su linea en espanol, con seed fija para que la
 voz sea reproducible: descripcion + seed = lock de voz.
 
+La seed NO se pasa a `VoxCPM.generate`: la version instalada de voxcpm
+NO acepta ese argumento (la referencia oficial de la API 2.0 lista la
+firma real sin `seed`; el README lo muestra pero el codigo lo rechaza
+con TypeError — eso tumbo la corrida #1). La reproducibilidad se logra
+sembrando los generadores aleatorios (torch, random, numpy) justo antes
+de cada generacion con `fijar_seed()`.
+
 Uso:
     python scripts/generar_muestras.py --manifiesto muestras.json --out-dir muestras
     python scripts/generar_muestras.py --manifiesto muestras.json --out-dir muestras --personaje camila
@@ -26,6 +33,12 @@ Decisiones fijadas por la documentacion oficial (OpenBMB/VoxCPM):
   de ModelScope y solo se usa para limpiar audios de referencia; en
   `design` no hay referencia, asi que no hace falta.
 - cfg_value=2.0, inference_timesteps=10: defaults del README oficial.
+- seed: `VoxCPM.generate` NO acepta `seed` en la version instalada
+  (firma real segun la referencia de la API 2.0: text, prompt_wav_path,
+  prompt_text, reference_wav_path, cfg_value, inference_timesteps,
+  min_len, max_len, normalize, denoise, retry_badcase). Se siembra con
+  `torch.manual_seed(seed)` (+ random y numpy) antes de cada generacion;
+  la seed queda registrada por muestra en manifiesto_corrida.json.
 
 Salida por personaje: <id>.wav (48 kHz, VoxCPM2) + manifiesto_corrida.json
 con duraciones, tiempos de generacion y parametros. Si una muestra falla,
@@ -50,6 +63,35 @@ def cargar_manifiesto(ruta: Path) -> dict:
             if campo not in p or p[campo] in (None, ""):
                 raise ValueError(f"Personaje sin {campo!r}: {p}")
     return manifiesto
+
+
+def fijar_seed(seed: int) -> None:
+    """Siembra los generadores aleatorios antes de cada generacion.
+
+    `VoxCPM.generate` no acepta `seed` en la version instalada de voxcpm
+    (la corrida #1 fallo con TypeError por ese argumento). El muestreo
+    usa los RNG de torch/random/numpy, asi que sembrarlos justo antes de
+    generar es lo que hace reproducible cada voz. Ningun fallo al sembrar
+    debe tumbar la corrida: cada siembra va protegida.
+    """
+    try:
+        import random
+
+        random.seed(seed)
+    except Exception:  # noqa: BLE001 - sembrar es best-effort
+        pass
+    try:
+        import numpy as np
+
+        np.random.seed(seed % (2 ** 32))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import torch
+
+        torch.manual_seed(seed)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def main() -> int:
@@ -111,11 +153,12 @@ def main() -> int:
         print(f"[voxcp2] Generando {p['id']} (seed={seed})...", flush=True)
         t1 = time.perf_counter()
         try:
+            # generate() NO acepta seed: se siembra antes de cada llamada.
+            fijar_seed(seed)
             wav = model.generate(
                 text=texto,
                 cfg_value=fijos.get("cfg_value", 2.0),
                 inference_timesteps=fijos.get("inference_timesteps", 10),
-                seed=seed,
             )
         except Exception as exc:  # noqa: BLE001 - seguir con el siguiente personaje
             print(f"[voxcp2] FALLO {p['id']}: {exc}", file=sys.stderr, flush=True)
