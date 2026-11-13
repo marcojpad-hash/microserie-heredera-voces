@@ -1,0 +1,21 @@
+name: supervisor
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: supervisor-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  supervisor:
+    uses: marcojpad-hash/agente-cero-costo/.github/workflows/supervisor-reutilizable.yml@supervisor-reutilizable-grok
+    secrets: inherit
