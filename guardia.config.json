@@ -1,0 +1,90 @@
+{
+  "project": "microserie-heredera-voces",
+  "security": {
+    "allowed_packages": [],
+    "fail_on_outside_artifact": true
+  },
+  "gatekeeper": {
+    "exit_code_on_fail": 9,
+    "strict_mode_env_var": "GUARDIA_ESTRICTA",
+    "strict_mode_default": true,
+    "exclude_sidecars": [
+      "*.log",
+      "*.jsonl",
+      "*.tmp",
+      "*.pyc",
+      "*.lock",
+      "__pycache__"
+    ]
+  },
+  "topology": {
+    "expected_components": {
+      "syntax": {
+        "required": true,
+        "terminal": true,
+        "feeds": [],
+        "consumes": [],
+        "requires_input": true,
+        "when": "changed_python_files",
+        "builtin": "compile_changed_python",
+        "expected_artifacts": [],
+        "expected_keys_in_output": {}
+      },
+      "placeholder_scan": {
+        "required": true,
+        "terminal": true,
+        "feeds": [],
+        "consumes": [],
+        "requires_input": true,
+        "when": "changed_python_files",
+        "builtin": "placeholder_scan",
+        "expected_artifacts": [],
+        "expected_keys_in_output": {}
+      },
+      "size_delta": {
+        "required": true,
+        "terminal": true,
+        "feeds": [],
+        "consumes": [],
+        "requires_input": true,
+        "when": "changed_python_files",
+        "builtin": "size_delta",
+        "expected_artifacts": [],
+        "expected_keys_in_output": {}
+      },
+      "dependency_policy": {
+        "required": true,
+        "terminal": true,
+        "feeds": [],
+        "consumes": [],
+        "requires_input": false,
+        "when": "requirements_present",
+        "builtin": "package_policy",
+        "expected_artifacts": [],
+        "expected_keys_in_output": {}
+      },
+      "tests": {
+        "required": false,
+        "terminal": true,
+        "feeds": [],
+        "consumes": [],
+        "requires_input": false,
+        "when": "tests_present",
+        "builtin": "tests",
+        "expected_artifacts": [],
+        "expected_keys_in_output": {}
+      },
+      "smokes": {
+        "required": false,
+        "terminal": true,
+        "feeds": [],
+        "consumes": [],
+        "requires_input": false,
+        "when": "smokes_present",
+        "builtin": "smokes",
+        "expected_artifacts": [],
+        "expected_keys_in_output": {}
+      }
+    }
+  }
+}
